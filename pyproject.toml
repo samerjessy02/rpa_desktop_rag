@@ -1,0 +1,25 @@
+[project]
+name = "tjm-project"
+version = "0.1.0"
+description = "Windows desktop automation agent: LangGraph + cascaded visual grounding (ScreenSeekeR-style) to locate the Notepad icon, fetch posts from JSONPlaceholder, and save them via Notepad."
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-community>=0.3.0",
+    "pyautogui>=0.9.54",
+    "pillow>=10.4.0",
+    "requests>=2.32.0",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.8.0",
+    "langchain-google-genai>=4.3.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.uv]
+package = true

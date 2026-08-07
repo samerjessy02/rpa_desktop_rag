@@ -1,0 +1,78 @@
+# tjm-project
+
+Windows desktop agent: LangGraph state machine + cascaded visual grounding
+(ScreenSeekeR-style) to find the Notepad icon, fetch 10 posts from
+JSONPlaceholder, and save them via Notepad to `Desktop/tjm-project/`.
+
+## Setup (uv)
+
+```bash
+# 1. Install uv if you don't have it: https://docs.astral.sh/uv/getting-started/installation/
+
+# 2. From the project root, sync dependencies
+uv sync
+
+# 3. Copy the env template and fill in your OpenRouter key
+cp .env.example .env
+# edit .env: set OPENROUTER_API_KEY
+```
+
+`OPENROUTER_API_KEY` powers both the planner (Llama-4 Scout) and, by
+default, the vision grounding model (Qwen2.5-VL) — OpenRouter hosts both.
+To run Qwen2.5-VL locally instead (e.g. vLLM/Ollama), set
+`LOCAL_VLM_BASE_URL` in `.env` to an OpenAI-compatible base URL; nothing
+else needs to change.
+
+## Running
+
+```bash
+# Full 10-post run against the real desktop
+uv run main.py
+
+# Dry run: exercises the full LangGraph state machine without touching
+# the mouse/keyboard or calling any model API
+uv run main.py --mock
+```
+
+## Tests (run in order while building/verifying)
+
+```bash
+uv run tests/test_1_env.py          # dependency versions + resolution check
+uv run tests/test_2_api.py          # fetch + format post 1
+uv run tests/test_3_slicing.py      # screenshot, slice into quadrants, coord math
+uv run tests/test_4_vision.py       # real VLM call + mouse-move verification
+uv run tests/test_5_graph_mock.py   # full graph, all 10 posts, no side effects
+uv run tests/test_6_e2e_single.py   # real end-to-end run for 1 post
+```
+
+Before Test 4, 6, and 7 (final verification), place the Notepad shortcut
+somewhere visible on the desktop. For Test 7 (final submission
+screenshots), re-run with the icon in three different positions
+(top-left, bottom-right, center) and capture an annotated screenshot each
+time.
+
+## Project layout
+
+```
+pyproject.toml
+main.py
+src/tjm_project/
+  config.py       # constants: screen geometry, paths, model ids
+  api_client.py   # JSONPlaceholder fetch + formatting
+  screen_utils.py # screenshot, quadrant slicing, coordinate mapping
+  vision.py        # Qwen2.5-VL grounding calls
+  planner.py       # Llama-4 Scout retry/continue decisions
+  execution.py      # pyautogui: double-click, type, save, close
+  graph.py          # LangGraph state machine wiring it all together
+tests/              # Tests 1-6 from the assignment
+DESIGN_DOC.md
+```
+
+## Notes on this environment
+
+This was developed and its logic (routing, coordinate math, formatting,
+mock graph run) verified in a sandbox without a Windows display or live
+API keys — `tests/test_5_graph_mock.py` passing end-to-end (all 10 posts,
+correct node visitation) is the strongest signal available here. Tests 1,
+3, 4, and 6 need a real Windows session (and 4/6 need `OPENROUTER_API_KEY`)
+to run for real.
