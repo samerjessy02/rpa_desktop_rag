@@ -12,16 +12,15 @@ JSONPlaceholder, and save them via Notepad to `Desktop/tjm-project/`.
 # 2. From the project root, sync dependencies
 uv sync
 
-# 3. Copy the env template and fill in your OpenRouter key
+# 3. Copy the env template and fill in your API keys
 cp .env.example .env
-# edit .env: set OPENROUTER_API_KEY
+# edit .env: set OPENROUTER_API_KEY and GOOGLE_API_KEY
 ```
 
-`OPENROUTER_API_KEY` powers both the planner (Llama-4 Scout) and, by
-default, the vision grounding model (Qwen2.5-VL) — OpenRouter hosts both.
-To run Qwen2.5-VL locally instead (e.g. vLLM/Ollama), set
-`LOCAL_VLM_BASE_URL` in `.env` to an OpenAI-compatible base URL; nothing
-else needs to change.
+`OPENROUTER_API_KEY` powers the planner (Llama-4 Scout, via OpenRouter).
+`GOOGLE_API_KEY` powers the vision grounding model (Gemini Flash, via
+`langchain-google-genai`). Both are required for a real (non-`--mock`)
+run.
 
 ## Running
 
@@ -60,19 +59,10 @@ src/tjm_project/
   config.py       # constants: screen geometry, paths, model ids
   api_client.py   # JSONPlaceholder fetch + formatting
   screen_utils.py # screenshot, quadrant slicing, coordinate mapping
-  vision.py        # Qwen2.5-VL grounding calls
+  vision.py        # Gemini Flash grounding calls
   planner.py       # Llama-4 Scout retry/continue decisions
   execution.py      # pyautogui: double-click, type, save, close
   graph.py          # LangGraph state machine wiring it all together
 tests/              # Tests 1-6 from the assignment
 DESIGN_DOC.md
 ```
-
-## Notes on this environment
-
-This was developed and its logic (routing, coordinate math, formatting,
-mock graph run) verified in a sandbox without a Windows display or live
-API keys — `tests/test_5_graph_mock.py` passing end-to-end (all 10 posts,
-correct node visitation) is the strongest signal available here. Tests 1,
-3, 4, and 6 need a real Windows session (and 4/6 need `OPENROUTER_API_KEY`)
-to run for real.
