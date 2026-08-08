@@ -8,15 +8,10 @@ Flow per post:
                               v                                  v
                           planner                               END
                         /    |     \\
-             next_quadrant retry  give_up
+              next_quadrant retry  give_up
                   |          |        \\
                   v          v         v
-              grounding  capture_and_slice  END
-
-`state["mock"]` short-circuits the vision call and the physical pyautogui
-actions so the whole graph can be exercised without a display or API keys
-(see tests/test_5_graph_mock.py) — useful for verifying state transitions
-in CI or on a machine without a GUI.
+         grounding  capture_and_slice  END
 """
 from __future__ import annotations
 
@@ -161,7 +156,6 @@ def execution_node(state: AgentState) -> AgentState:
     posts = state["posts"]
     next_post = posts[next_index] if next_index < len(posts) else None
 
-    # TEST PAUSE: Give you time to manually move the Notepad icon on the desktop
     if next_post and not state.get("mock"):
         print("\n" + "=" * 50)
         print(" [TEST PAUSE] Post finished successfully!")
