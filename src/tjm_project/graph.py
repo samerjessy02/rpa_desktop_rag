@@ -2,19 +2,25 @@
 
 Flow per post:
 
-    capture_and_slice --> grounding --(found)--> execution --(more posts)--> capture_and_slice
-                              |                                  |
-                          (not found)                        (no more posts)
-                              v                                  v
-                          planner                               END
-                        /    |     \\
-              next_quadrant retry  give_up
-                  |          |        \\
-                  v          v         v
-         grounding  capture_and_slice  END
+    capture_and_slice --> plan_search_order --> grounding --(found)--> execution --(more posts)--> capture_and_slice
+                                                     |                                  |
+                                                (not found)                        (no more posts)
+                                                     v                                  v
+                                                 planner                               END
+                                               /    |     \\
+                                     next_quadrant retry  give_up
+                                         |          |        \\
+                                         v          v         v
+                                grounding  capture_and_slice  END
+
+`plan_search_order` is the ScreenSeekeR-style step: the planner is shown a
+downscaled full screenshot + target description and ranks the 4 quadrants by
+likelihood BEFORE any grounding call, instead of scanning them in a fixed
+0-1-2-3 order.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional, TypedDict
 
 from langgraph.graph import StateGraph, START, END
@@ -32,14 +38,15 @@ class AgentState(TypedDict):
 
     screenshot_path: Optional[str]
     quadrants: list[str]
-    current_quadrant_index: int
+    quadrant_order: list[int]        # planner's ranked search order (permutation of 0-3)
+    current_quadrant_index: int      # pointer INTO quadrant_order, not a raw quadrant id
     target_coords: Optional[tuple[int, int]]
     retry_count: int
     max_retries: int
 
     completed_paths: list[str]
     status: str          # human-readable trace of the last transition
-    mock: bool            # if True, skip real VLM calls / pyautogui actions
+    mock: bool            # if True, skip real VLM/planner calls & pyautogui actions
     last_decision: Optional[str]  # planner's most recent routing decision
 
 
@@ -66,6 +73,7 @@ def capture_and_slice_node(state: AgentState) -> AgentState:
             **state,
             "screenshot_path": "mock_screenshot.png",
             "quadrants": quadrants,
+            "quadrant_order": [],
             "current_quadrant_index": 0,
             "target_coords": None,
             "status": "captured+sliced (mock)",
@@ -82,32 +90,61 @@ def capture_and_slice_node(state: AgentState) -> AgentState:
         **state,
         "screenshot_path": str(screenshot_path),
         "quadrants": [str(p) for p in quadrant_paths],
+        "quadrant_order": [],
         "current_quadrant_index": 0,
         "target_coords": None,
         "status": "captured+sliced",
     }
 
 
-def grounding_node(state: AgentState) -> AgentState:
-    idx = state["current_quadrant_index"]
+def plan_search_order_node(state: AgentState) -> AgentState:
+    """ScreenSeekeR-style position inference: show the planner the full
+    (downscaled) screenshot + target description and get back a ranked
+    quadrant search order, instead of scanning 0-1-2-3 blindly.
+    """
     target_description = state.get("target_description") or config.DEFAULT_TARGET_DESCRIPTION
 
     if state.get("mock"):
-        # Simulate a hit on the last quadrant of the first attempt so the
-        # mock run exercises both the "not found -> planner" edge and the
+        order = [0, 1, 2, 3]
+        return {
+            **state,
+            "quadrant_order": order,
+            "current_quadrant_index": 0,
+            "status": f"planned search order (mock): {order}",
+        }
+
+    planner_view = screen_utils.downscale_for_planner(Path(state["screenshot_path"]))
+    order = planner.decide_quadrant_order(planner_view, target_description)
+    return {
+        **state,
+        "quadrant_order": order,
+        "current_quadrant_index": 0,
+        "status": f"planned search order: {order}",
+    }
+
+
+def grounding_node(state: AgentState) -> AgentState:
+    order = state.get("quadrant_order") or [0, 1, 2, 3]
+    step = state["current_quadrant_index"]      # pointer into order, 0-3
+    idx = order[step]                             # actual physical quadrant index
+    target_description = state.get("target_description") or config.DEFAULT_TARGET_DESCRIPTION
+
+    if state.get("mock"):
+        # Simulate a hit on the last step of the first attempt so the mock
+        # run exercises both the "not found -> planner" edge and the
         # "found -> execution" edge without a real VLM.
-        found = idx == 3
+        found = step == 3
         if found:
             gx, gy = screen_utils.local_to_global(idx, 100, 100)
             return {
                 **state,
                 "target_coords": (gx, gy),
-                "status": f"grounding (mock): found in quadrant {idx}",
+                "status": f"grounding (mock): found in quadrant {idx} (step {step})",
             }
         return {
             **state,
-            "current_quadrant_index": idx + 1,
-            "status": f"grounding (mock): miss in quadrant {idx}",
+            "current_quadrant_index": step + 1,
+            "status": f"grounding (mock): miss in quadrant {idx} (step {step})",
         }
 
     crop_path = state["quadrants"][idx]
@@ -117,30 +154,49 @@ def grounding_node(state: AgentState) -> AgentState:
         return {
             **state,
             "target_coords": (gx, gy),
-            "status": f"grounding: found icon in quadrant {idx} -> global ({gx},{gy})",
+            "status": f"grounding: found icon in quadrant {idx} (step {step}) -> global ({gx},{gy})",
         }
 
     return {
         **state,
-        "current_quadrant_index": idx + 1,
-        "status": f"grounding: miss in quadrant {idx}",
+        "current_quadrant_index": step + 1,
+        "status": f"grounding: miss in quadrant {idx} (step {step})",
     }
 
 
 def planner_node(state: AgentState) -> AgentState:
-    decision = planner.decide_next_step(
-        quadrant_index=state["current_quadrant_index"],
-        retry_count=state["retry_count"],
-        max_retries=state["max_retries"],
-    )
+    if state.get("mock"):
+        # Deterministic fallback logic only — never call the real planner
+        # LLM in mock mode. This must match planner.decide_next_step's own
+        # deterministic fallback so mock and live share the same routing
+        # shape; it's just never allowed to be overridden by a live model
+        # response while mocked.
+        quadrant_index = state["current_quadrant_index"]
+        retry_count = state["retry_count"]
+        max_retries = state["max_retries"]
+        if quadrant_index <= 3:
+            decision = "next_quadrant"
+        elif retry_count < max_retries:
+            decision = "retry"
+        else:
+            decision = "give_up"
+        status_suffix = " (mock)"
+    else:
+        decision = planner.decide_next_step(
+            quadrant_index=state["current_quadrant_index"],
+            retry_count=state["retry_count"],
+            max_retries=state["max_retries"],
+        )
+        status_suffix = ""
+
     if decision == "retry":
         return {
             **state,
             "retry_count": state["retry_count"] + 1,
-            "status": f"planner: retry #{state['retry_count'] + 1}",
+            "status": f"planner{status_suffix}: retry #{state['retry_count'] + 1}",
             "last_decision": decision,
         }
-    return {**state, "status": f"planner: {decision}", "last_decision": decision}
+    return {**state, "status": f"planner{status_suffix}: {decision}", "last_decision": decision}
 
 
 def execution_node(state: AgentState) -> AgentState:
@@ -204,13 +260,15 @@ def build_graph():
 
     graph.add_node("fetch_posts", fetch_posts_node)
     graph.add_node("capture_and_slice", capture_and_slice_node)
+    graph.add_node("plan_search_order", plan_search_order_node)
     graph.add_node("grounding", grounding_node)
     graph.add_node("planner", planner_node)
     graph.add_node("execution", execution_node)
 
     graph.add_edge(START, "fetch_posts")
     graph.add_edge("fetch_posts", "capture_and_slice")
-    graph.add_edge("capture_and_slice", "grounding")
+    graph.add_edge("capture_and_slice", "plan_search_order")
+    graph.add_edge("plan_search_order", "grounding")
 
     graph.add_conditional_edges(
         "grounding",
@@ -239,6 +297,7 @@ def initial_state(mock: bool = False, target_description: str | None = None) -> 
         "target_description": target_description or config.DEFAULT_TARGET_DESCRIPTION,
         "screenshot_path": None,
         "quadrants": [],
+        "quadrant_order": [],
         "current_quadrant_index": 0,
         "target_coords": None,
         "retry_count": 0,

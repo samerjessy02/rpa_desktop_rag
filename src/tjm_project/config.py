@@ -52,6 +52,15 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 MAX_RETRIES = 3           # full-screen retry loops after all 4 quadrants miss
 RETRY_WAIT_SECONDS = 2
 
+# Max dimension (px) for the downscaled full screenshot sent to the planner
+# for quadrant-order reasoning (ScreenSeekeR-style position inference).
+# Raised from an earlier 768 -> 1280: small icon labels (e.g. "Notepad"
+# under a 72px icon) become illegible at 768 once a 1920-wide screenshot is
+# shrunk, which was causing the planner to guess based on icon clustering
+# instead of actually reading labels. 1280 trades a bit more token/latency
+# cost for meaningfully better legibility.
+PLANNER_IMAGE_MAX_DIM = 1280
+
 # Default target if none is passed on the command line — keeps existing
 # behavior/tests working unchanged. Grounding is not hardcoded to Notepad:
 # any icon/button description can be supplied at runtime (see main.py --target).
