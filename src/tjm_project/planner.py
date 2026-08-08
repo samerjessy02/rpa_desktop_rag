@@ -1,9 +1,6 @@
 """Planner node: a small reasoning step (Llama-4 Scout via OpenRouter) that
 decides what to do after a quadrant search misses. This is intentionally a
-thin LLM call, not a rules engine, per the assignment's "standard agentic
-design patterns" requirement (planner separated from the grounding/vision
-step). In practice the decision is simple enough that a plain if/else would
-also work — the LLM is kept in the loop so it can reason about edge cases
+thin LLM call, not a rules engine. The LLM is kept in the loop so it can reason about edge cases
 like an unexpected popup stealing focus.
 """
 from __future__ import annotations
@@ -64,7 +61,7 @@ def decide_next_step(quadrant_index: int, retry_count: int, max_retries: int) ->
     if "give_up" in text:
         return "give_up"
 
-    # Deterministic fallback mirrors the exact rule the prompt describes.
+    # Deterministic fallback
     if quadrant_index <= 3:
         return "next_quadrant"
     if retry_count < max_retries:
