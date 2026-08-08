@@ -37,7 +37,7 @@ This is "cascaded" in the sense that each quadrant is a cheaper, higher-
 precision sub-search rather than one expensive full-frame search — the same
 principle ScreenSeekeR-style pipelines use, generalized here to a simple
 fixed 2x2 grid (a single cascade level) since a 960x540 crop is already
-small enough for reliable point/bbox grounding from Qwen2.5-VL. A deeper
+small enough for reliable point/bbox grounding from Gemini 3.6 Flash. A deeper
 implementation could recurse (quadrant of a quadrant) if 960x540 still
 proved too coarse, but one level was sufficient for a icon-sized target and
 keeps the code easy to explain.
@@ -47,8 +47,8 @@ keeps the code easy to explain.
 The assignment calls for "standard agentic design patterns," which in
 practice means **separating perception from decision-making**:
 
-- **Grounding node (Qwen2.5-VL)** — a vision-language model whose only job
-  is: "given this image crop, is the icon here, and if so, where?" It
+- **Grounding node (Gemini 3.6 Flash)** — a vision-language model whose only
+  job is: "given this image crop, is the icon here, and if so, where?" It
   returns structured JSON (`{"found": bool, "bbox": [...]}`) and nothing
   else. No planning, no memory of past attempts.
 - **Planner node (Llama-4 Scout, via OpenRouter)** — a text-only reasoning
@@ -106,7 +106,7 @@ START -> fetch_posts -> capture_and_slice -> grounding
   quadrants, resets `current_quadrant_index` to 0 and `target_coords` to
   `None`. Re-entered both for a new post and for a retry after all
   quadrants miss.
-- **`grounding_node`** — runs Qwen2.5-VL on `quadrants[current_quadrant_index]`.
+- **`grounding_node`** — runs Gemini 3.6 Flash on `quadrants[current_quadrant_index]`.
   On a hit, sets `target_coords` (converted to global coordinates via
   `local_to_global`). On a miss, increments `current_quadrant_index`.
 - **`planner_node`** — only reached on a miss. Decides `next_quadrant`
@@ -131,10 +131,11 @@ call.
   producing wrong coordinates.
 - The Notepad icon is visible somewhere on the desktop (not minimized to a
   folder, not covered by a maximized window) at the start of each run.
-- Qwen2.5-VL and Llama-4 Scout are both reachable via OpenRouter using an
-  OpenAI-compatible chat-completions API; `LOCAL_VLM_BASE_URL` is provided
-  as an escape hatch to point the vision call at a local server instead,
-  without changing any calling code.
+- Llama-4 Scout (planner) is reachable via OpenRouter using an
+  OpenAI-compatible chat-completions API (`OPENROUTER_API_KEY`). Gemini 3.6
+  Flash (grounding) is called directly through Google's Generative AI API
+  via `langchain-google-genai` (`GOOGLE_API_KEY`), not through OpenRouter —
+  the two models are on separate providers with separate credentials.
 - One retry loop (fresh screenshot + re-slice) is enough to recover from
   transient occlusions (a popup, a not-yet-rendered desktop); genuinely
   missing icons should surface as a `give_up` rather than retry forever.
