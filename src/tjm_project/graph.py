@@ -62,6 +62,8 @@ def fetch_posts_node(state: AgentState) -> AgentState:
 
 def capture_and_slice_node(state: AgentState) -> AgentState:
     import pyautogui
+    import time
+    from datetime import datetime
     
     if state.get("mock"):
         quadrants = [f"mock_quadrant_{i}.png" for i in range(4)]
@@ -76,11 +78,16 @@ def capture_and_slice_node(state: AgentState) -> AgentState:
 
     # GUARDRAIL: Minimize all open windows (Win + D) to guarantee a clean desktop view
     pyautogui.hotkey("win", "d")
-    import time
     time.sleep(0.8)  # wait for animations to clear
 
-    screenshot_path = screen_utils.capture_screen()
-    quadrant_paths = screen_utils.slice_into_quadrants(screenshot_path)
+    # Create a timestamped folder inside the scratch directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = config.SCRATCH_DIR / timestamp
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    screenshot_path = screen_utils.capture_screen(save_dir=run_dir)
+    quadrant_paths = screen_utils.slice_into_quadrants(screenshot_path, save_dir=run_dir)
+    
     return {
         **state,
         "screenshot_path": str(screenshot_path),
@@ -89,6 +96,7 @@ def capture_and_slice_node(state: AgentState) -> AgentState:
         "target_coords": None,
         "status": "captured+sliced",
     }
+  
 
 
 def grounding_node(state: AgentState) -> AgentState:
@@ -100,12 +108,14 @@ def grounding_node(state: AgentState) -> AgentState:
         # "found -> execution" edge without a real VLM.
         found = idx == 3
         if found:
-            gx, gy = screen_utils.local_to_global(idx, 100, 100)
-            return {
-                **state,
-                "target_coords": (gx, gy),
-                "status": f"grounding (mock): found in quadrant {idx}",
-            }
+            global_coords = screen_utils.local_to_global(idx, 100, 100)
+            if global_coords is not None:
+                gx, gy = global_coords
+                return {
+                    **state,
+                    "target_coords": (gx, gy),
+                    "status": f"grounding (mock): found in quadrant {idx}",
+                }
         return {
             **state,
             "current_quadrant_index": idx + 1,
@@ -114,18 +124,22 @@ def grounding_node(state: AgentState) -> AgentState:
 
     crop_path = state["quadrants"][idx]
     local = vision.locate_icon_in_crop(crop_path)
+    
     if local is not None:
-        gx, gy = screen_utils.local_to_global(idx, *local)
-        return {
-            **state,
-            "target_coords": (gx, gy),
-            "status": f"grounding: found icon in quadrant {idx} -> global ({gx},{gy})",
-        }
+        global_coords = screen_utils.local_to_global(idx, *local)
+        # Reject if guardrails blocked the coordinates (returned None)
+        if global_coords is not None:
+            gx, gy = global_coords
+            return {
+                **state,
+                "target_coords": (gx, gy),
+                "status": f"grounding: found icon in quadrant {idx} -> global ({gx},{gy})",
+            }
 
     return {
         **state,
         "current_quadrant_index": idx + 1,
-        "status": f"grounding: miss in quadrant {idx}",
+        "status": f"grounding: miss or invalid coords in quadrant {idx}",
     }
 
 

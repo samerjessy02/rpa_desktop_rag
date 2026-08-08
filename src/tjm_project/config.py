@@ -57,7 +57,10 @@ MAX_RETRIES = 3           # full-screen retry loops after all 4 quadrants miss
 RETRY_WAIT_SECONDS = 2
 NOTEPAD_ICON_PROMPT = (
     "Locate the Notepad desktop icon (a small application shortcut icon, "
-    "not an open window) in this image. Respond with strict JSON only, "
+    "not an open window) in this image. "
+    "The icon might appear in small, medium, or large Windows settings, "
+    "and the desktop background might use a light or dark theme. "
+    "Respond with strict JSON only, "
     'in the form {"found": true, "bbox": [x1, y1, x2, y2]} using pixel '
     'coordinates relative to THIS image, or {"found": false} if no '
     "Notepad icon is visible in this crop."
