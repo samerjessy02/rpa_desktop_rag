@@ -67,12 +67,3 @@ src/tjm_project/
 tests/              # Tests 1-6 from the assignment
 DESIGN_DOC.md
 ```
-
-## Notes on this environment
-
-This was developed and its logic (routing, coordinate math, formatting,
-mock graph run) verified in a sandbox without a Windows display or live
-API keys — `tests/test_5_graph_mock.py` passing end-to-end (all 10 posts,
-correct node visitation) is the strongest signal available here. Tests 1,
-3, 4, and 6 need a real Windows session (and 4/6 need `OPENROUTER_API_KEY`)
-to run for real.
