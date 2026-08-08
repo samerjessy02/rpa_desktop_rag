@@ -1,9 +1,4 @@
 """Screenshot capture + quadrant slicing + local<->global coordinate mapping.
-
-This is the mechanical half of the ScreenSeekeR-style cascaded search: instead
-of feeding a full 1920x1080 frame to the VLM (which the paper shows fails on
-small targets like desktop icons), we slice the frame into four quadrants and
-search them one at a time, only ever showing the model a 960x540 crop.
 """
 from __future__ import annotations
 
@@ -17,16 +12,13 @@ from tjm_project import config
 
 def capture_screen(save_dir: Path | None = None) -> Path:
     """Take a full-screen screenshot and save it to disk. Returns the path."""
-    import pyautogui  # imported lazily: requires a real display/GUI session,
-    # which mock-mode callers (and this module's own unit tests for slicing
-    # math) should not need just to import the module.
+    import pyautogui  # imported lazily
 
     save_dir = save_dir or config.SCRATCH_DIR
     save_dir.mkdir(parents=True, exist_ok=True)
     img = pyautogui.screenshot()
     if img.size != (config.SCREEN_WIDTH, config.SCREEN_HEIGHT):
         # Don't silently proceed on the wrong resolution: quadrant math below
-        # assumes 1920x1080, per the assignment's fixed environment.
         raise RuntimeError(
             f"Expected {config.SCREEN_WIDTH}x{config.SCREEN_HEIGHT} screen, "
             f"got {img.size}. Re-check display scaling/resolution."
