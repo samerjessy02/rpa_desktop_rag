@@ -1,5 +1,6 @@
 """Vision grounding node: uses Gemini Flash via LangChain to locate 
-the Notepad icon inside a single quadrant crop and returns local (x, y) pixel coordinates.
+an arbitrary target (icon, button, etc.) inside a single quadrant crop and
+returns local (x, y) pixel coordinates.
 """
 from __future__ import annotations
 
@@ -26,10 +27,16 @@ def _extract_json(text: str) -> Optional[dict]:
         return None
 
 
-def locate_icon_in_crop(image_path: Path) -> Optional[tuple[int, int]]:
+def locate_icon_in_crop(
+    image_path: Path, target_description: str = config.DEFAULT_TARGET_DESCRIPTION
+) -> Optional[tuple[int, int]]:
     """Call Gemini Flash on a single quadrant crop.
 
-    Returns the (local_x, local_y) center of the Notepad icon if found,
+    `target_description` describes the target to look for (e.g. "the Notepad
+    desktop icon", "the red Submit button") — the grounding call is not
+    hardcoded to any specific icon.
+
+    Returns the (local_x, local_y) center of the target if found,
     else None. Coordinates are local to `image_path` (i.e. 0-960 x 0-540).
     """
     llm = ChatGoogleGenerativeAI(
@@ -42,12 +49,12 @@ def locate_icon_in_crop(image_path: Path) -> Optional[tuple[int, int]]:
     b64 = base64.b64encode(image_bytes).decode("utf-8")
 
     prompt = (
-        f"{config.NOTEPAD_ICON_PROMPT}\n\n"
-        "Analyze this quadrant image crop carefully. If the Notepad desktop icon is present, "
+        f"{config.build_icon_prompt(target_description)}\n\n"
+        "Analyze this quadrant image crop carefully. If the target is present, "
         "respond with a valid JSON object in this exact format: "
         '{"found": true, "bbox": [ymin, xmin, ymax, xmax]}. '
         "Crucially, the bounding box coordinates MUST be normalized values between 0 and 1000. "
-        'If the Notepad icon is not in this crop, respond with {"found": false}.'
+        'If the target is not in this crop, respond with {"found": false}.'
     )
 
     message = HumanMessage(

@@ -51,13 +51,26 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # --- Agent behavior -----------------------------------------------------------
 MAX_RETRIES = 3           # full-screen retry loops after all 4 quadrants miss
 RETRY_WAIT_SECONDS = 2
-NOTEPAD_ICON_PROMPT = (
-    "Locate the Notepad desktop icon (a small application shortcut icon, "
-    "not an open window) in this image. Respond with strict JSON only, "
-    'in the form {"found": true, "bbox": [x1, y1, x2, y2]} using pixel '
-    'coordinates relative to THIS image, or {"found": false} if no '
-    "Notepad icon is visible in this crop."
+
+# Default target if none is passed on the command line — keeps existing
+# behavior/tests working unchanged. Grounding is not hardcoded to Notepad:
+# any icon/button description can be supplied at runtime (see main.py --target).
+DEFAULT_TARGET_DESCRIPTION = (
+    "the Notepad desktop icon (a small application shortcut icon, "
+    "not an open window)"
 )
+
+
+def build_icon_prompt(target_description: str) -> str:
+    """Build the grounding prompt for an arbitrary target (icon, button, etc.),
+    not just Notepad.
+    """
+    return (
+        f"Locate {target_description} in this image. Respond with strict "
+        'JSON only, in the form {"found": true, "bbox": [x1, y1, x2, y2]} '
+        "using pixel coordinates relative to THIS image, or "
+        '{"found": false} if the target is not visible in this crop.'
+    )
 
 
 def ensure_dirs() -> None:

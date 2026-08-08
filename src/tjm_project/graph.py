@@ -28,6 +28,8 @@ class AgentState(TypedDict):
     current_post_index: int
     current_post: Optional[Post]
 
+    target_description: str  # what the grounding node is searching for (e.g. "the Notepad icon")
+
     screenshot_path: Optional[str]
     quadrants: list[str]
     current_quadrant_index: int
@@ -88,6 +90,7 @@ def capture_and_slice_node(state: AgentState) -> AgentState:
 
 def grounding_node(state: AgentState) -> AgentState:
     idx = state["current_quadrant_index"]
+    target_description = state.get("target_description") or config.DEFAULT_TARGET_DESCRIPTION
 
     if state.get("mock"):
         # Simulate a hit on the last quadrant of the first attempt so the
@@ -108,7 +111,7 @@ def grounding_node(state: AgentState) -> AgentState:
         }
 
     crop_path = state["quadrants"][idx]
-    local = vision.locate_icon_in_crop(crop_path)
+    local = vision.locate_icon_in_crop(crop_path, target_description)
     if local is not None:
         gx, gy = screen_utils.local_to_global(idx, *local)
         return {
@@ -228,11 +231,12 @@ def build_graph():
     return graph.compile()
 
 
-def initial_state(mock: bool = False) -> AgentState:
+def initial_state(mock: bool = False, target_description: str | None = None) -> AgentState:
     return {
         "posts": [],
         "current_post_index": 0,
         "current_post": None,
+        "target_description": target_description or config.DEFAULT_TARGET_DESCRIPTION,
         "screenshot_path": None,
         "quadrants": [],
         "current_quadrant_index": 0,

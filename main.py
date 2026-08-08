@@ -23,15 +23,24 @@ def main() -> None:
         "--limit", type=int, default=config.NUM_POSTS,
         help="Number of posts to process (default: 10).",
     )
+    parser.add_argument(
+        "--target", type=str, default=None,
+        help="Description of the icon/button to locate on screen "
+             '(default: the Notepad icon). E.g. --target "the Firefox icon" '
+             'or --target "the red Submit button".',
+    )
     args = parser.parse_args()
 
     # Override config so fetch_posts respects the command-line limit
     config.NUM_POSTS = args.limit
 
     graph = build_graph()
-    state = initial_state(mock=args.mock)
+    state = initial_state(mock=args.mock, target_description=args.target)
 
-    print(f"Starting run (mock={args.mock}, limit={args.limit})...")
+    print(
+        f"Starting run (mock={args.mock}, limit={args.limit}, "
+        f"target={state['target_description']!r})..."
+    )
     final_state = None
     for step in graph.stream(state, {"recursion_limit": 200}):
         for node_name, node_state in step.items():
