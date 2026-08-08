@@ -1,8 +1,5 @@
 """Physical execution: double-click the located icon, type the post into
 Notepad, save it via Save As menu, and close the window.
-
-Kept separate from graph.py so it can be monkeypatched/mocked in tests
-(Test 5 runs the graph without touching the real mouse/keyboard).
 """
 from __future__ import annotations
 
@@ -28,7 +25,6 @@ def run_post_in_notepad(target_coords: tuple[int, int], post: Post) -> str:
 
     # GUARDRAIL: Delete the file via Python if it already exists. 
     # This guarantees Notepad will never show a "Confirm Save As" (overwrite) dialog,
-    # meaning we only ever need to press Enter exactly once.
     if out_path.exists():
         out_path.unlink()
 
