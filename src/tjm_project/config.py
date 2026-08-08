@@ -1,8 +1,4 @@
 """Central configuration for the tjm-project agent.
-
-Kept as one small module (not a framework) so every other file can do
-`from tjm_project import config` and read plain constants. This is a
-take-home project, so we deliberately avoid a settings-management library.
 """
 from __future__ import annotations
 
